@@ -4,7 +4,8 @@ import httpx
 from fastapi import FastAPI, HTTPException, Response
 
 LICHESS_USER_URL = "https://lichess.org/api/user/{username}"
-SHIELDS_BADGE_URL = "https://img.shields.io/badge/{label}-{rating}-blue"
+LICHESS_STATUS_URL = "https://lichess.org/api/users/status"
+SHIELDS_BADGE_URL = "https://img.shields.io/badge/{label}-{message}-{color}"
 
 # Lichess logo, base64-encoded SVG, for the shields.io `logo` query param.
 LICHESS_LOGO_BASE64 = (
@@ -72,7 +73,33 @@ async def badge(username: str, time_control: TimeControl):
         label = f"Lichess {time_control.value[0].upper()}{time_control.value[1:]}"
 
         shield_response = await client.get(
-            SHIELDS_BADGE_URL.format(label=label, rating=rating),
+            SHIELDS_BADGE_URL.format(label=label, message=rating, color="blue"),
+            params={
+                "logo": f"data:image/svg+xml;base64,{LICHESS_LOGO_BASE64}",
+                "style": "for-the-badge",
+            },
+        )
+        shield_response.raise_for_status()
+
+    return Response(content=shield_response.content, media_type="image/svg+xml")
+
+
+@app.get("/api/status/{username}")
+async def status(username: str):
+    async with httpx.AsyncClient() as client:
+        status_response = await client.get(LICHESS_STATUS_URL, params={"ids": username})
+        status_response.raise_for_status()
+
+        users = status_response.json()
+        if not users:
+            raise HTTPException(status_code=404, detail=f"Lichess user '{username}' not found")
+
+        online = users[0].get("online", False)
+        message = "online" if online else "offline"
+        color = "brightgreen" if online else "lightgrey"
+
+        shield_response = await client.get(
+            SHIELDS_BADGE_URL.format(label="Lichess", message=message, color=color),
             params={
                 "logo": f"data:image/svg+xml;base64,{LICHESS_LOGO_BASE64}",
                 "style": "for-the-badge",
