@@ -51,7 +51,7 @@ def root():
     return {"status": "ok"}
 
 
-@app.get("/api/lichess-badge/{username}/{time_control}")
+@app.get("/api/rating/{username}/{time_control}")
 async def badge(username: str, time_control: TimeControl):
     async with httpx.AsyncClient() as client:
         user_response = await client.get(LICHESS_USER_URL.format(username=username))
