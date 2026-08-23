@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lichess Badge Generator</title>
+<style>
+  :root {
+    --bg: #16181a;
+    --panel: #202225;
+    --border: #34373b;
+    --text: #e8e6e3;
+    --muted: #9a9da2;
+    --accent: #4b0;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    display: flex;
+    justify-content: center;
+    padding: 3rem 1.5rem;
+  }
+  main { width: 100%; max-width: 640px; }
+  h1 { font-size: 1.5rem; margin-bottom: 0.25rem; }
+  p.lead { color: var(--muted); margin-top: 0; margin-bottom: 2rem; }
+  section {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+  }
+  h2 { font-size: 1.05rem; margin: 0 0 1rem; }
+  label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 0.4rem; }
+  .row { display: flex; gap: 0.75rem; margin-bottom: 1rem; flex-wrap: wrap; }
+  .field { flex: 1; min-width: 160px; }
+  input[type="text"], select {
+    width: 100%;
+    background: #16181a;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    padding: 0.55rem 0.65rem;
+    font-size: 0.9rem;
+  }
+  input[type="text"]:focus, select:focus { outline: 1px solid var(--accent); }
+  .preview { min-height: 32px; margin: 1rem 0; }
+  .preview img { display: block; }
+  .snippet { display: flex; gap: 0.5rem; }
+  .snippet input {
+    flex: 1;
+    font-family: var(--mono);
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+  button.copy {
+    background: #2a2d31;
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 6px;
+    padding: 0 0.9rem;
+    cursor: pointer;
+    font-size: 0.8rem;
+  }
+  button.copy:hover { border-color: var(--accent); }
+  button.copy.copied { color: var(--accent); border-color: var(--accent); }
+  .empty-hint { color: var(--muted); font-size: 0.85rem; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Lichess Badge Generator</h1>
+  <p class="lead">Enter a username to generate a shields.io badge you can drop into a Markdown README.</p>
+
+  <section>
+    <h2>Rating badge</h2>
+    <div class="row">
+      <div class="field">
+        <label for="rating-username">Lichess username</label>
+        <input type="text" id="rating-username" placeholder="DrNykterstein" autocomplete="off">
+      </div>
+      <div class="field">
+        <label for="rating-time-control">Time control</label>
+        <select id="rating-time-control">
+          <option value="ultraBullet">UltraBullet</option>
+          <option value="bullet">Bullet</option>
+          <option value="blitz" selected>Blitz</option>
+          <option value="rapid">Rapid</option>
+          <option value="classical">Classical</option>
+          <option value="correspondence">Correspondence</option>
+          <option value="chess960">Chess960</option>
+          <option value="crazyhouse">Crazyhouse</option>
+          <option value="antichess">Antichess</option>
+          <option value="atomic">Atomic</option>
+          <option value="horde">Horde</option>
+          <option value="kingOfTheHill">King of the Hill</option>
+          <option value="racingKings">Racing Kings</option>
+          <option value="threeCheck">Three-check</option>
+          <option value="puzzle">Puzzle</option>
+        </select>
+      </div>
+    </div>
+    <div class="preview" id="rating-preview-wrap">
+      <span class="empty-hint">Enter a username to see a preview.</span>
+    </div>
+    <label for="rating-markdown">Markdown</label>
+    <div class="snippet">
+      <input type="text" id="rating-markdown" readonly>
+      <button class="copy" data-target="rating-markdown">Copy</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>Online status badge</h2>
+    <div class="row">
+      <div class="field">
+        <label for="status-username">Lichess username</label>
+        <input type="text" id="status-username" placeholder="DrNykterstein" autocomplete="off">
+      </div>
+    </div>
+    <div class="preview" id="status-preview-wrap">
+      <span class="empty-hint">Enter a username to see a preview.</span>
+    </div>
+    <label for="status-markdown">Markdown</label>
+    <div class="snippet">
+      <input type="text" id="status-markdown" readonly>
+      <button class="copy" data-target="status-markdown">Copy</button>
+    </div>
+  </section>
+</main>
+
+<script>
+  const ORIGIN = window.location.origin;
+
+  function debounce(fn, ms) {
+    let timer;
+    return (...args) => {
+      clearTimeout(timer);
+      timer = setTimeout(() => fn(...args), ms);
+    };
+  }
+
+  function buildPreview(previewWrapId, imgAlt, url) {
+    const wrap = document.getElementById(previewWrapId);
+    wrap.innerHTML = "";
+    const img = document.createElement("img");
+    img.alt = imgAlt;
+    img.src = url;
+    wrap.appendChild(img);
+  }
+
+  function clearPreview(previewWrapId, hint) {
+    const wrap = document.getElementById(previewWrapId);
+    wrap.innerHTML = `<span class="empty-hint">${hint}</span>`;
+  }
+
+  const updateRating = debounce(() => {
+    const username = document.getElementById("rating-username").value.trim();
+    const timeControl = document.getElementById("rating-time-control").value;
+    const markdownField = document.getElementById("rating-markdown");
+
+    if (!username) {
+      clearPreview("rating-preview-wrap", "Enter a username to see a preview.");
+      markdownField.value = "";
+      return;
+    }
+
+    const path = `/api/rating/${encodeURIComponent(username)}/${timeControl}`;
+    const url = `${ORIGIN}${path}`;
+    buildPreview("rating-preview-wrap", `${username} ${timeControl} rating`, url);
+    markdownField.value = `![Lichess ${timeControl} rating](${url})`;
+  }, 300);
+
+  const updateStatus = debounce(() => {
+    const username = document.getElementById("status-username").value.trim();
+    const markdownField = document.getElementById("status-markdown");
+
+    if (!username) {
+      clearPreview("status-preview-wrap", "Enter a username to see a preview.");
+      markdownField.value = "";
+      return;
+    }
+
+    const path = `/api/status/${encodeURIComponent(username)}`;
+    const url = `${ORIGIN}${path}`;
+    buildPreview("status-preview-wrap", `${username} online status`, url);
+    markdownField.value = `![Lichess online status](${url})`;
+  }, 300);
+
+  document.getElementById("rating-username").addEventListener("input", updateRating);
+  document.getElementById("rating-time-control").addEventListener("change", updateRating);
+  document.getElementById("status-username").addEventListener("input", updateStatus);
+
+  document.querySelectorAll("button.copy").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const target = document.getElementById(button.dataset.target);
+      if (!target.value) return;
+      try {
+        await navigator.clipboard.writeText(target.value);
+      } catch (err) {
+        target.select();
+        document.execCommand("copy");
+      }
+      button.textContent = "Copied!";
+      button.classList.add("copied");
+      setTimeout(() => {
+        button.textContent = "Copy";
+        button.classList.remove("copied");
+      }, 1200);
+    });
+  });
+</script>
+</body>
+</html>
